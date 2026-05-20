@@ -1,49 +1,179 @@
 import { Request, Response } from "express"
 
 import Lead from "../models/Lead"
-import { AuthRequest } from "../middleware/authMiddleware"
 
+
+
+// CREATE LEAD
 export const createLead = async (
-  req: AuthRequest,
+  req: Request,
   res: Response
-) => {
-  try {
-    const { name, email, status, source } = req.body
+): Promise<void> => {
 
-    const lead = await Lead.create({
+  try {
+
+    const {
       name,
       email,
       status,
       source,
-      createdBy: req.user._id,
-    })
+    } = req.body
 
-    res.status(201).json(lead)
+
+
+    // REQUIRED FIELD VALIDATION
+    if (
+      !name ||
+      !email ||
+      !status ||
+      !source
+    ) {
+
+      res.status(400).json({
+        message:
+          "All fields are required",
+      })
+
+      return
+    }
+
+
+
+    // EMAIL VALIDATION
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+
+
+    if (
+      !emailRegex.test(email)
+    ) {
+
+      res.status(400).json({
+        message:
+          "Invalid email format",
+      })
+
+      return
+    }
+
+
+
+    // STATUS VALIDATION
+    const validStatuses = [
+      "New",
+      "Contacted",
+      "Qualified",
+      "Lost",
+    ]
+
+
+
+    if (
+      !validStatuses.includes(
+        status
+      )
+    ) {
+
+      res.status(400).json({
+        message:
+          "Invalid status value",
+      })
+
+      return
+    }
+
+
+
+    // SOURCE VALIDATION
+    const validSources = [
+      "Website",
+      "Instagram",
+      "Referral",
+    ]
+
+
+
+    if (
+      !validSources.includes(
+        source
+      )
+    ) {
+
+      res.status(400).json({
+        message:
+          "Invalid source value",
+      })
+
+      return
+    }
+
+
+
+    const lead =
+      await Lead.create({
+        name,
+        email,
+        status,
+        source,
+      })
+
+
+
+    res.status(201).json(
+      lead
+    )
+
   } catch (error) {
+
+    console.log(error)
+
     res.status(500).json({
-      message: "Failed to create lead",
+      message:
+        "Failed to create lead",
     })
   }
 }
 
+
+
+// GET ALL LEADS
 export const getLeads = async (
   req: Request,
   res: Response
-) => {
-  try {
-    const page = Number(req.query.page) || 1
-    const limit = 10
-    const skip = (page - 1) * limit
+): Promise<void> => {
 
-    const search = req.query.search as string
-    const status = req.query.status as string
-    const source = req.query.source as string
-    const sort = req.query.sort as string
+  try {
+
+    const page =
+      Number(req.query.page) || 1
+
+    const limit = 10
+
+    const skip =
+      (page - 1) * limit
+
+    const search =
+      req.query.search || ""
+
+    const status =
+      req.query.status || ""
+
+    const source =
+      req.query.source || ""
+
+    const sort =
+      req.query.sort || "latest"
+
+
 
     const query: any = {}
 
-    // Search
+
+
+    // SEARCH BY NAME OR EMAIL
     if (search) {
+
       query.$or = [
         {
           name: {
@@ -51,6 +181,7 @@ export const getLeads = async (
             $options: "i",
           },
         },
+
         {
           email: {
             $regex: search,
@@ -60,100 +191,251 @@ export const getLeads = async (
       ]
     }
 
-    // Filter status
+
+
+    // FILTER BY STATUS
     if (status) {
-      query.status = status
+
+      query.status = {
+        $regex: status,
+        $options: "i",
+      }
     }
 
-    // Filter source
+
+
+    // FILTER BY SOURCE
     if (source) {
-      query.source = source
+
+      query.source = {
+        $regex: source,
+        $options: "i",
+      }
     }
 
-    // Sorting
-    let sortOption = {}
 
-    if (sort === "latest") {
-      sortOption = { createdAt: -1 }
-    } else if (sort === "oldest") {
-      sortOption = { createdAt: 1 }
-    }
 
-    const totalRecords = await Lead.countDocuments(query)
+    // SORTING
+    const sortOption: any =
+      sort === "oldest"
+        ? { createdAt: 1 }
+        : { createdAt: -1 }
 
-    const leads = await Lead.find(query)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(limit)
+
+
+    const leads =
+      await Lead.find(query)
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limit)
+
+
+
+    const total =
+      await Lead.countDocuments(query)
+
+
 
     res.status(200).json({
       leads,
       currentPage: page,
-      totalPages: Math.ceil(totalRecords / limit),
-      totalRecords,
+      totalPages: Math.ceil(
+        total / limit
+      ),
+      totalLeads: total,
     })
+
   } catch (error) {
+
+    console.log(error)
+
     res.status(500).json({
-      message: "Failed to fetch leads",
+      message:
+        "Failed to fetch leads",
     })
   }
 }
 
-export const getSingleLead = async (
+
+
+// GET SINGLE LEAD
+export const getLeadById = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
+
   try {
-    const lead = await Lead.findById(req.params.id)
+
+    const lead =
+      await Lead.findById(
+        req.params.id
+      )
+
+
 
     if (!lead) {
-      return res.status(404).json({
-        message: "Lead not found",
+
+      res.status(404).json({
+        message:
+          "Lead not found",
       })
+
+      return
     }
 
-    res.status(200).json(lead)
+
+
+    res.status(200).json(
+      lead
+    )
+
   } catch (error) {
+
+    console.log(error)
+
     res.status(500).json({
-      message: "Failed to fetch lead",
+      message:
+        "Failed to fetch lead",
     })
   }
 }
 
+
+
+// UPDATE LEAD
 export const updateLead = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
+
   try {
-    const updatedLead = await Lead.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-      }
+
+    const {
+      name,
+      email,
+      status,
+      source,
+    } = req.body
+
+
+
+    // REQUIRED FIELD VALIDATION
+    if (
+      !name ||
+      !email ||
+      !status ||
+      !source
+    ) {
+
+      res.status(400).json({
+        message:
+          "All fields are required",
+      })
+
+      return
+    }
+
+
+
+    // EMAIL VALIDATION
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+
+
+    if (
+      !emailRegex.test(email)
+    ) {
+
+      res.status(400).json({
+        message:
+          "Invalid email format",
+      })
+
+      return
+    }
+
+
+
+    const updatedLead =
+      await Lead.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        {
+          new: true,
+        }
+      )
+
+
+
+    if (!updatedLead) {
+
+      res.status(404).json({
+        message:
+          "Lead not found",
+      })
+
+      return
+    }
+
+
+
+    res.status(200).json(
+      updatedLead
     )
 
-    res.status(200).json(updatedLead)
   } catch (error) {
+
+    console.log(error)
+
     res.status(500).json({
-      message: "Failed to update lead",
+      message:
+        "Failed to update lead",
     })
   }
 }
 
+
+
+// DELETE LEAD
 export const deleteLead = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
+
   try {
-    await Lead.findByIdAndDelete(req.params.id)
+
+    const deletedLead =
+      await Lead.findByIdAndDelete(
+        req.params.id
+      )
+
+
+
+    if (!deletedLead) {
+
+      res.status(404).json({
+        message:
+          "Lead not found",
+      })
+
+      return
+    }
+
+
 
     res.status(200).json({
-      message: "Lead deleted successfully",
+      message:
+        "Lead deleted successfully",
     })
+
   } catch (error) {
+
+    console.log(error)
+
     res.status(500).json({
-      message: "Failed to delete lead",
+      message:
+        "Failed to delete lead",
     })
   }
 }
